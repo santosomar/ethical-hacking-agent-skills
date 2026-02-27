@@ -1,7 +1,13 @@
-# ethical-hacking-agent-skills
+# Ethical Hacking AI Agent Skills
 
-Ethical Hacking AI Agent Skills following the Agent Skills specification:
-https://agentskills.io/specification
+This repository contains a collection of AI agent skills. These skills are designed based on the official [Agent Skills specification](https://agentskills.io/specification).
+
+## How to use these skills
+
+1. Clone this repository.
+2. Copy one or more skill folders from `skills/` into your agent's skill directory (each skill must remain a directory containing `SKILL.md`).
+3. Keep `SKILL.md` frontmatter spec-compliant (`name` must match the folder name; `description` should state what the skill does and when to use it).
+4. Optionally validate a skill with `skills-ref validate ./skills/<skill-name>`.
 
 ## Included Skills
 
