@@ -23,23 +23,11 @@ Portable (agent-agnostic) skill directories:
 - `skills/pt-fuzzing-web-api/`
 - `skills/pt-fuzzing-binary-protocol/`
 - `skills/pt-lotl-techniques/`
+- `skills/pt-lotl-detection-hardening/`
+- `skills/pt-lotl-investigation-reporting/`
+- `skills/pt-nuclei-template-creation/`
 - `skills/pt-web-application-assessment/`
 - `skills/pt-embedded-device-assessment/`
-
-Cursor-compatible copies:
-
-- `.cursor/skills/pt-planning-recon/`
-- `.cursor/skills/pt-scanning/`
-- `.cursor/skills/pt-gaining-access/`
-- `.cursor/skills/pt-maintaining-access/`
-- `.cursor/skills/pt-post-exploitation/`
-- `.cursor/skills/pt-analysis-reporting/`
-- `.cursor/skills/pt-report-creation/`
-- `.cursor/skills/pt-fuzzing-web-api/`
-- `.cursor/skills/pt-fuzzing-binary-protocol/`
-- `.cursor/skills/pt-lotl-techniques/`
-- `.cursor/skills/pt-web-application-assessment/`
-- `.cursor/skills/pt-embedded-device-assessment/`
 
 ## Notes
 
