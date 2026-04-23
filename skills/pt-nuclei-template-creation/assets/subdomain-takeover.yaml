@@ -1,0 +1,98 @@
+# DNS SUBDOMAIN TAKEOVER DETECTION TEMPLATE
+# Detects dangling CNAME records pointing to unclaimed third-party services.
+#
+# How subdomain takeover works:
+#   1. victim.com has a CNAME → service.provider.com
+#   2. The service.provider.com resource has been deleted / unclaimed
+#   3. An attacker registers the unclaimed resource and serves arbitrary content
+#
+# This template checks both:
+#   - DNS: dangling CNAME pointing to a known takeover-vulnerable provider
+#   - HTTP: the provider's "unclaimed" fingerprint string in the response body
+#
+# Copy, replace <PLACEHOLDER> values, then validate:
+#   nuclei -t ./subdomain-takeover.yaml -validate
+
+id: subdomain-takeover-provider-name    # e.g. subdomain-takeover-github-pages
+
+info:
+  name: Subdomain Takeover — Provider Name
+  author: your-handle
+  severity: high
+  description: |
+    The target subdomain has a dangling CNAME record pointing to Provider Name.
+    The upstream resource appears to be unclaimed, allowing an attacker to register
+    it and serve arbitrary content under the victim's domain.
+  remediation: |
+    Remove the CNAME record from DNS, or reclaim the upstream resource at Provider Name.
+  reference:
+    - https://github.com/EdOverflow/can-i-take-over-xyz
+    - https://provider.example.com/docs/custom-domains
+  metadata:
+    verified: true
+    max-request: 1         # DNS request only; increment to 2 if adding HTTP confirmation
+  tags: dns,takeover,provider-name
+
+# Step 1: Confirm the CNAME points to the provider
+dns:
+  - name: "{{FQDN}}"
+    type: CNAME
+    matchers:
+      - type: word
+        part: answer
+        words:
+          - ".provider.example.com"   # CNAME target suffix for this provider
+
+# Step 2: HTTP confirmation — check for the provider's "unclaimed" error page
+# This reduces false positives: a live / claimed resource won't show this message.
+# Increment max-request to 2 and uncomment this block when available.
+#
+# http:
+#   - method: GET
+#     path:
+#       - "{{BaseURL}}"
+#     matchers-condition: and
+#     matchers:
+#       - type: status
+#         status:
+#           - 404      # or 200, depending on the provider's unclaimed page
+#       - type: word
+#         part: body
+#         words:
+#           - "There isn't a GitHub Pages site here."  # provider-specific error string
+
+---
+# MULTI-PROVIDER EXAMPLES
+# Each provider has a unique CNAME suffix and unclaimed fingerprint.
+# Create one template file per provider for clean tagging and attribution.
+
+# --- GitHub Pages ---
+# CNAME suffix: .github.io
+# HTTP fingerprint: "There isn't a GitHub Pages site here."
+
+# --- Amazon S3 ---
+# CNAME suffix: .s3.amazonaws.com  /  .s3-website-*.amazonaws.com
+# HTTP fingerprint: "NoSuchBucket" or "The specified bucket does not exist"
+
+# --- Azure (App Service / Blob) ---
+# CNAME suffix: .azurewebsites.net  /  .blob.core.windows.net
+# HTTP fingerprint: "404 Web Site not found" / "BlobNotFound"
+
+# --- Heroku ---
+# CNAME suffix: .herokudns.com  /  .herokuapp.com
+# HTTP fingerprint: "No such app"
+
+# --- Fastly ---
+# CNAME suffix: .fastly.net
+# HTTP fingerprint: "Fastly error: unknown domain"
+
+# --- Shopify ---
+# CNAME suffix: .myshopify.com
+# HTTP fingerprint: "Sorry, this shop is currently unavailable."
+
+# --- Zendesk ---
+# CNAME suffix: .zendesk.com
+# HTTP fingerprint: "Help Center Closed"
+
+# Community-maintained fingerprint list:
+# https://github.com/EdOverflow/can-i-take-over-xyz
