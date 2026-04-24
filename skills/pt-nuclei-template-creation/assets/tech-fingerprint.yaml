@@ -1,0 +1,99 @@
+# TECHNOLOGY FINGERPRINTING TEMPLATE
+# Use this pattern to detect a specific technology, framework, or product version.
+# Fingerprints are low-severity by nature — they establish presence, not exploitability.
+#
+# Copy, replace <PLACEHOLDER> values, then validate:
+#   nuclei -t ./tech-fingerprint.yaml -validate
+
+id: detect-vendor-product            # e.g. detect-wordpress, detect-jenkins
+
+info:
+  name: Vendor Product Detection
+  author: your-handle
+  severity: info
+  description: |
+    Detects the presence of Vendor Product by checking for a known response
+    indicator at a predictable endpoint.
+  metadata:
+    verified: true
+    max-request: 2
+    vendor: vendor-name
+    product: product-name
+  tags: tech,detect,vendor-name
+
+http:
+  # Request 1: check the most reliable fingerprint endpoint
+  - method: GET
+    path:
+      - "{{BaseURL}}/path/that/reveals/product"   # e.g. /wp-login.php, /actuator/info
+
+    matchers-condition: and
+    matchers:
+      - type: status
+        status:
+          - 200
+
+      # Pick ONE of the following matcher strategies — the most specific one available:
+
+      # Strategy A — unique title or body string
+      - type: word
+        part: body
+        words:
+          - "Product Name"    # exact string from the page/response
+        condition: and
+
+      # Strategy B — header fingerprint (comment out if using A)
+      # - type: word
+      #   part: header
+      #   words:
+      #     - "X-Powered-By: ProductName"
+
+      # Strategy C — regex for version extraction (comment out if using A/B)
+      # - type: regex
+      #   part: body
+      #   regex:
+      #     - 'ProductName/[0-9.]+'
+
+    extractors:
+      # Extract version if visible — useful for downstream vuln matching
+      - type: regex
+        part: body
+        name: version
+        group: 1
+        regex:
+          - 'ProductName[/\s"]+([0-9]+\.[0-9]+(?:\.[0-9]+)?)'
+
+  # Request 2: secondary confirmation (optional — remove and set max-request: 1 if unused)
+  - method: GET
+    path:
+      - "{{BaseURL}}/secondary/fingerprint/path"
+
+    matchers:
+      - type: word
+        part: body
+        words:
+          - "secondary-unique-string"
+
+# Version-specific fingerprint example
+# Detects a specific version range using compare_versions DSL helper.
+# Uncomment and add as a separate template file for version-gated vuln checks.
+#
+# http:
+#   - method: GET
+#     path:
+#       - "{{BaseURL}}/version-endpoint"
+#     matchers-condition: and
+#     matchers:
+#       - type: status
+#         status: [200]
+#       - type: dsl
+#         dsl:
+#           - 'compare_versions(version, ">= 1.0.0", "< 2.5.0")'
+#     extractors:
+#       - type: regex
+#         name: version
+#         part: body
+#         internal: true
+#         group: 1
+#         regex:
+#           - '"version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)"'

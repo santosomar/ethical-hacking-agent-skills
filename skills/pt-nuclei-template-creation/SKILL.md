@@ -1,6 +1,11 @@
 ---
 name: pt-nuclei-template-creation
 description: Creates Nuclei YAML templates for vulnerability detection across HTTP, DNS, TCP, SSL, and other protocols. Use when converting a confirmed vulnerability, misconfiguration, or exposure into a reusable automated check — for example, turning a manual finding into a detection rule, writing a CVE check, or codifying a technology fingerprint.
+compatibility: Requires nuclei (github.com/projectdiscovery/nuclei) v3+ installed and reachable on PATH.
+metadata:
+  author: ethical-hacking-agent-skills
+  version: "2.0"
+allowed-tools: Bash(nuclei:*) Read Write
 ---
 
 # Nuclei Template Creation
@@ -131,27 +136,194 @@ http:
 
 Suffix response parts with `_N` (1-indexed) to match against a specific request in a multi-request chain.
 
+## Non-HTTP Protocols
+
+### DNS
+
+```yaml
+dns:
+  - name: "{{FQDN}}"
+    type: CNAME
+    matchers:
+      - type: word
+        words:
+          - "s3.amazonaws.com"
+        part: answer
+```
+
+### TCP / SSL
+
+```yaml
+tcp:
+  - address:
+      - "{{Host}}:{{Port}}"
+    inputs:
+      - data: "\r\n"
+    read-size: 2048
+    matchers:
+      - type: word
+        part: body
+        words:
+          - "OpenSSH"
+
+ssl:
+  - address: "{{Host}}:{{Port}}"
+    matchers:
+      - type: dsl
+        dsl:
+          - 'contains(subject_cn, "internal.corp")'
+          - 'not_after < unix_time()'     # expired cert
+        condition: or
+```
+
+### Headless (Browser)
+
+```yaml
+headless:
+  - steps:
+      - action: navigate
+        args:
+          url: "{{BaseURL}}/login"
+      - action: waitload
+    matchers:
+      - type: word
+        part: body
+        words:
+          - "admin panel"
+```
+
+Use `headless:` only when JavaScript rendering is required; it is much slower than `http:`.
+
+## Variables and Payloads
+
+Use a `variables:` block to precompute values:
+
+```yaml
+variables:
+  encoded: "{{base64('admin:admin')}}"
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/api/v1/secret"
+    headers:
+      Authorization: "Basic {{encoded}}"
+```
+
+Use `payloads:` with an attack type for fuzzing checks:
+
+```yaml
+http:
+  - method: POST
+    path:
+      - "{{BaseURL}}/search"
+    body: "q={{payload}}"
+    payloads:
+      payload:
+        - "' OR 1=1--"
+        - "\" OR 1=1--"
+    attack: batteringram          # one payload at a time; use clusterbomb for combos
+    matchers:
+      - type: word
+        words:
+          - "SQL syntax"
+        part: body
+```
+
+Attack types: `batteringram` (single list, same value per position), `pitchfork` (parallel lists), `clusterbomb` (cartesian product).
+
+## Flow Control
+
+Use `flow:` to orchestrate multi-protocol or conditional request chains. Requests only run when the preceding gate returns true.
+
+```yaml
+flow: http(1) && http(2)
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/wp-content/plugins/vuln-plugin/readme.txt"
+    matchers:
+      - type: word
+        words: ["Vuln Plugin"]
+        internal: true             # gate check — suppresses output
+
+  - method: POST
+    path:
+      - "{{BaseURL}}/wp-admin/admin-ajax.php"
+    body: "action=exploit"
+    matchers:
+      - type: word
+        words: ["success"]
+```
+
+## Output Template
+
+```markdown
+# Nuclei Template: {{id}}
+
+## Template summary
+- File: `{{id}}.yaml`
+- Protocol: http | dns | tcp | ssl | headless
+- Severity: info | low | medium | high | critical
+- Request count: N
+
+## Detection logic
+- Trigger path/condition:
+- Matcher signals:
+  1.
+  2.
+- Extractors (if any):
+
+## Validation results
+- `nuclei -validate`: pass | fail (list errors)
+- True-positive host tested: yes | no
+- True-negative host tested: yes | no
+- False-positive risk notes:
+
+## Handoff to pt-scanning
+- Template path for inclusion in scan runs:
+- Recommended tags/filters: `-tags`
+- Any prerequisites (auth creds, interactsh server, etc.):
+```
+
 ## Validation
 
+Use the bundled script for combined schema + lint checking:
+
 ```bash
-# Schema + syntax check (no network)
+# Validate a single template (schema + lint)
+bash scripts/validate.sh ./template.yaml
+
+# Validate + dry-run against an approved host
+bash scripts/validate.sh ./template.yaml -u https://approved-test-host
+
+# Validate all templates in a directory
+bash scripts/validate.sh ./templates/
+```
+
+Or run nuclei directly:
+
+```bash
 nuclei -t ./template.yaml -validate
-
-# Dry run against an approved host with full request/response debug
 nuclei -t ./template.yaml -u https://approved-test-host -debug
-
-# Lint against the official JSON schema (optional, for editor integration)
-# https://raw.githubusercontent.com/projectdiscovery/nuclei/dev/nuclei-jsonschema.json
 ```
 
 ## Reference Material
 
-When a field or matcher type is unclear, consult in this order:
+Load these files on demand when more depth is needed:
 
-1. Auto-generated syntax reference: `github.com/projectdiscovery/nuclei/blob/dev/SYNTAX-REFERENCE.md`
-2. JSON schema (exhaustive field list): `github.com/projectdiscovery/nuclei/blob/dev/nuclei-jsonschema.json`
-3. Real examples by category: `github.com/projectdiscovery/nuclei-templates/tree/main/http`
-4. Matcher reference: `docs.projectdiscovery.io/templates/reference/matchers`
+- **[references/REFERENCE.md](references/REFERENCE.md)** — complete DSL helper functions, all matcher/extractor types, template variables, and response-part table
+- **[references/protocols.md](references/protocols.md)** — full option reference for HTTP, DNS, TCP, SSL, Headless, File, and JavaScript protocols
+- **[assets/cve-http.yaml](assets/cve-http.yaml)** — annotated CVE detection template (copy and adapt)
+- **[assets/tech-fingerprint.yaml](assets/tech-fingerprint.yaml)** — technology fingerprinting template
+- **[assets/subdomain-takeover.yaml](assets/subdomain-takeover.yaml)** — DNS subdomain takeover detection template
+
+Upstream reference (authoritative):
+
+- Syntax reference: `github.com/projectdiscovery/nuclei/blob/dev/SYNTAX-REFERENCE.md`
+- JSON schema: `github.com/projectdiscovery/nuclei/blob/dev/nuclei-jsonschema.json`
+- Community templates: `github.com/projectdiscovery/nuclei-templates`
 
 ## Quality Checks
 
