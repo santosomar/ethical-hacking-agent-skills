@@ -112,7 +112,41 @@ check_file() {
 
   # Warn if matchers-condition is absent but multiple matchers are defined
   local matcher_count
-  matcher_count=$(grep -c '^\s*- type:' "$file" 2>/dev/null || true)
+  matcher_count=$(
+    awk '
+      function indent_level(line) {
+        match(line, /^[[:space:]]*/)
+        return RLENGTH
+      }
+
+      {
+        if ($0 ~ /^[[:space:]]*matchers:[[:space:]]*$/) {
+          in_matchers = 1
+          matchers_indent = indent_level($0)
+          next
+        }
+
+        if (in_matchers) {
+          if ($0 ~ /^[[:space:]]*$/) {
+            next
+          }
+
+          current_indent = indent_level($0)
+          if (current_indent <= matchers_indent && $0 !~ /^[[:space:]]*-/) {
+            in_matchers = 0
+          }
+        }
+
+        if (in_matchers && $0 ~ /^[[:space:]]*-[[:space:]]*type:[[:space:]]*/) {
+          count++
+        }
+      }
+
+      END {
+        print count + 0
+      }
+    ' "$file" 2>/dev/null || true
+  )
   if [[ "$matcher_count" -gt 1 ]] && ! grep -q 'matchers-condition:' "$file" 2>/dev/null; then
     echo "  WARN [$file] Multiple matchers but no 'matchers-condition' — defaulting to OR (may cause false positives)"
     ISSUES=$((ISSUES + 1))
